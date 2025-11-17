@@ -1,0 +1,346 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Royalton‑Hartland Parent/Family Climate Survey</title>
+  <meta name="description" content="Anonymous parent/family climate survey for Royalton‑Hartland CSD" />
+  <style>
+    :root{
+      --rh-purple:#63419A; /* Roy‑Hart purple */
+      --rh-gray:#6B7280;
+      --bg-soft:#F8F7FC;
+      --card:#ffffff;
+      --border:#E5E7EB;
+    }
+    html,body{margin:0;padding:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,"Apple Color Emoji","Segoe UI Emoji";background:var(--bg-soft);color:#111827}
+    header{position:sticky;top:0;z-index:10;background:rgba(255,255,255,.9);backdrop-filter:saturate(180%) blur(6px);border-bottom:1px solid var(--border)}
+    .wrap{max-width:1040px;margin:0 auto;padding:12px 16px}
+    h1{margin:0;color:var(--rh-purple)}
+    .subtitle{font-size:.9rem;color:#4B5563;margin-top:4px}
+    .form{max-width:1040px;margin:0 auto;padding:24px 16px}
+    .section{background:rgba(255,255,255,.9);border:1px solid var(--border);border-radius:16px;padding:16px 16px;margin:20px 0}
+    .section h2{margin:0 0 6px 0;color:var(--rh-purple)}
+    .section p.blurb{margin:0 0 12px 0;color:#374151}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px;margin:10px 0}
+    .row{display:grid;grid-template-columns:1fr;gap:10px}
+    @media (min-width: 900px){ .row{grid-template-columns:1fr 1fr} }
+    .school{background:#F9FAFB;border:1px solid var(--border);border-radius:10px;padding:10px}
+    label{display:block;font-weight:600;font-size:.92rem;margin-bottom:6px}
+    select, textarea{width:100%;border:1px solid var(--border);border-radius:10px;padding:10px;font:inherit}
+    textarea{min-height:110px;resize:vertical}
+    .pill{display:inline-block;background:var(--rh-purple);color:#fff;font-weight:700;border-radius:9999px;padding:4px 10px;font-size:.8rem;letter-spacing:.02em}
+    .actions{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-top:14px}
+    .btn{background:var(--rh-purple);color:#fff;border:none;border-radius:14px;padding:12px 18px;font-weight:700;cursor:pointer}
+    .muted{color:#4B5563;font-size:.9rem}
+    .notice{border:1px solid var(--border);border-radius:12px;padding:12px;margin-top:8px}
+    .ok{background:#ecfdf5;color:#065f46}
+    .warn{background:#fffbeb;color:#92400e}
+    .err{background:#fef2f2;color:#991b1b}
+    footer{color:#6B7280;text-align:center;font-size:.75rem;padding:24px}
+    ::selection{background:var(--rh-purple);color:#fff}
+    .hint{color:#6B7280;font-size:.8rem;margin-top:8px}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap" style="display:flex;gap:12px;align-items:center">
+      <img id="logo" alt="Roy‑Hart" style="height:40px;width:40px;object-fit:contain" />
+      <div>
+        <h1>Royalton‑Hartland Parent/Family Climate Survey</h1>
+        <div class="subtitle">We want your feedback so we can continue to improve our partnership with district families. All
+          responses are <strong>anonymous</strong>. If you have specific questions or concerns, you can share them at the end of each section.</div>
+      </div>
+    </div>
+  </header>
+
+  <form id="survey" class="form" novalidate>
+    <!-- Sections will be injected here by JS -->
+  </form>
+
+  <footer>© <span id="yr"></span> Royalton‑Hartland Central School District</footer>
+
+  <script>
+  // ======= CONFIG =======
+  const BACKEND_URL = ''; // if blank, same-origin. Otherwise e.g. 'https://royhart-survey.onrender.com'
+  const LOGO_URL = "https://files.smartsites.parentsquare.com/4898/img_pd_102121_mxvilf.png"; // TODO: replace with real logo
+  document.getElementById('logo').src = LOGO_URL;
+  document.getElementById('yr').textContent = new Date().getFullYear();
+
+  // Schools
+  const SCHOOLS = [
+    { key: 'elem', label: 'Elementary School' },
+    { key: 'ms',   label: 'Middle School' },
+    { key: 'hs',   label: 'High School' }
+  ];
+
+  // Base scales (order doesn't matter; we will auto-order positive-first with N/A last)
+  const QUALITY_SCALE = [
+    { value: '1', label: '1 – Poor' },
+    { value: '2', label: '2 – Fair' },
+    { value: '3', label: '3 – Good' },
+    { value: '4', label: '4 – Very Good' },
+    { value: '5', label: '5 – Excellent' },
+    { value: 'na', label: 'N/A' }
+  ];
+
+  const FREQUENCY_SCALE = [
+    { value: '1', label: '1 – Never' },
+    { value: '2', label: '2 – Rarely' },
+    { value: '3', label: '3 – Sometimes' },
+    { value: '4', label: '4 – Often' },
+    { value: '5', label: '5 – Very Often' },
+    { value: 'na', label: 'N/A' }
+  ];
+
+  // Positive-first, N/A last auto-ordering (works for any numeric-labeled scale)
+  function orderScale(scale){
+    const isNA = (o) => String(o.value).toLowerCase() === 'na' || /(^|\W)na(\W|$)/i.test(o.label);
+    const body = scale.filter(o => !isNA(o));
+    const na = scale.filter(isNA);
+    const parseNum = (o) => {
+      const direct = Number(o.value);
+      if (!Number.isNaN(direct)) return direct;
+      const m = o.label.match(/(^|\s)(\d+)(?=\b)/);
+      return m ? Number(m[2]) : NaN;
+    };
+    const allNumeric = body.every(o => !Number.isNaN(parseNum(o)));
+    if (allNumeric) body.sort((a,b)=>parseNum(b)-parseNum(a));
+    return [...body, ...na];
+  }
+
+  // ======= SURVEY MODEL (rephrased so "Excellent" answers make sense) =======
+  const SURVEY = [
+    {
+      id: 'community',
+      title: 'School Community',
+      blurb: 'Creating a welcoming and inclusive environment that respects and values the diversity of families.',
+      items: [
+        { name: 'community_welcomed', prompt: "Overall, how welcomed and included do you feel in your child's school community?", scale: 'quality', hint: '1=Poor … 5=Excellent' },
+        { name: 'community_events', prompt: "How often have you attended school events or volunteered at your child's school this year?", scale: 'freq', hint: '1=Never … 5=Very Often' },
+        { name: 'community_meet_teacher', prompt: "How often have you met with your child's teacher(s) to discuss progress this year?", scale: 'freq', hint: '1=Never … 5=Very Often' },
+        { name: 'community_respect_diversity', prompt: "How well does your child's school respect and value the diversity of families?", scale: 'quality', hint: '1=Poor … 5=Excellent' },
+        { name: 'community_feedback_welcome', prompt: "How often have you provided feedback on ways the school can be more welcoming and inclusive?", scale: 'freq', hint: '1=Never … 5=Very Often' }
+      ],
+      free: { name: 'community_free', placeholder: 'Share your thoughts about the school community...' }
+    },
+    {
+      id: 'communication',
+      title: 'Communicating Effectively',
+      blurb: 'Clear and ongoing two‑way communication between families and schools.',
+      items: [
+        { name: 'comm_received_regular', prompt: "How clear and regular is the communication you receive from your child's school about events and activities?", scale: 'quality', hint: '1=Poor … 5=Excellent' },
+        { name: 'comm_with_teacher', prompt: "How often have you communicated with your child's teacher about questions or concerns?", scale: 'freq', hint: '1=Never … 5=Very Often' },
+        { name: 'comm_conferences', prompt: 'How often have you attended parent‑teacher conferences or meetings this year?', scale: 'freq', hint: '1=Never … 5=Very Often' },
+        { name: 'comm_provided_contact', prompt: 'How confident are you that the school has your current contact information?', scale: 'quality', hint: '1=Poor … 5=Excellent' },
+        { name: 'comm_feedback_improve', prompt: 'How often have you provided feedback on how the school can improve communication with families?', scale: 'freq', hint: '1=Never … 5=Very Often' }
+      ],
+      free: { name: 'communication_free', placeholder: 'Share your thoughts about communication with the school...' }
+    },
+    {
+      id: 'success',
+      title: 'Supporting Student Success',
+      blurb: 'Families and schools working together to support learning, monitor progress, and provide resources.',
+      items: [
+        { name: 'success_high_expectations', prompt: "To what extent do you hold high expectations for your child's academic success?", scale: 'quality', hint: '1=Poor … 5=Excellent' },
+        { name: 'success_talked_importance', prompt: 'How often have you talked with your child about the importance of education and future opportunities?', scale: 'freq', hint: '1=Never … 5=Very Often' },
+        { name: 'success_extra_support', prompt: 'How often have you provided additional resources or support to help your child succeed?', scale: 'freq', hint: '1=Never … 5=Very Often' },
+        { name: 'success_comm_teacher', prompt: "How often have you communicated with your child's teacher about academic concerns or challenges?", scale: 'freq', hint: '1=Never … 5=Very Often' }
+      ],
+      free: { name: 'success_free', placeholder: 'Share your thoughts about supporting student success...' }
+    },
+    {
+      id: 'advocacy',
+      title: 'Speaking Up for Every Child',
+      blurb: 'Advocating for all students and creating opportunities for families to have a voice in decisions.',
+      items: [
+        { name: 'advocacy_responsive', prompt: "How responsive is your child's school to your questions or concerns?", scale: 'quality', hint: '1=Poor … 5=Excellent' },
+        { name: 'advocacy_for_child', prompt: "How often have you advocated for your child's needs and interests with their school or teachers?", scale: 'freq', hint: '1=Never … 5=Very Often' },
+        { name: 'advocacy_participated', prompt: 'How often have you participated in efforts to advocate for all children (school or community)?', scale: 'freq', hint: '1=Never … 5=Very Often' },
+        { name: 'advocacy_feedback_needs', prompt: 'How often have you provided feedback on how the school can better meet the needs of all children?', scale: 'freq', hint: '1=Never … 5=Very Often' },
+        { name: 'advocacy_encourage_child', prompt: 'How often have you encouraged your child to speak up for themselves and their peers?', scale: 'freq', hint: '1=Never … 5=Very Often' }
+      ],
+      free: { name: 'advocacy_free', placeholder: 'Share your thoughts about speaking up for every child...' }
+    },
+    {
+      id: 'decision',
+      title: 'Decision Making',
+      blurb: 'Shared decision‑making and collaborative problem‑solving, including family involvement in policies and programs.',
+      items: [
+        { name: 'decision_participated', prompt: 'How often have you participated in school decision‑making processes or committees?', scale: 'freq', hint: '1=Never … 5=Very Often' },
+        { name: 'decision_feedback_policies', prompt: 'How often have you provided feedback on policies or programs affecting your child?', scale: 'freq', hint: '1=Never … 5=Very Often' },
+        { name: 'decision_collab_staff', prompt: 'How often have you worked collaboratively with teachers or school staff to address issues or concerns?', scale: 'freq', hint: '1=Never … 5=Very Often' },
+        { name: 'decision_support_leadership', prompt: 'How often have you supported your child in developing leadership skills and self‑advocacy?', scale: 'freq', hint: '1=Never … 5=Very Often' }
+      ],
+      free: { name: 'decision_free', placeholder: 'Share your thoughts about decision making and collaboration...' }
+    },
+    {
+      id: 'safety',
+      title: 'School Safety',
+      blurb: 'Maintaining a safe and secure environment while fostering a positive learning atmosphere.',
+      items: [
+        { name: 'safety_child_safe', prompt: 'Overall, how safe do you feel your child is while at school?', scale: 'quality', hint: '1=Poor … 5=Excellent' },
+        { name: 'safety_notify_quickly', prompt: 'How confident are you that you would be notified quickly in a safety concern or emergency?', scale: 'quality', hint: '1=Poor … 5=Excellent' },
+        { name: 'safety_physical_measures', prompt: "How confident are you in the school's physical safety measures (locked doors, visitor check‑in, cameras, etc.)?", scale: 'quality', hint: '1=Poor … 5=Excellent' },
+        { name: 'safety_supervision', prompt: 'How would you rate supervision of school grounds during arrival, dismissal, and lunch?', scale: 'quality', hint: '1=Poor … 5=Excellent' },
+        { name: 'safety_reporting', prompt: 'How confident are you that your child feels comfortable reporting bullying or unsafe behavior?', scale: 'quality', hint: '1=Poor … 5=Excellent' },
+        { name: 'safety_knows_who', prompt: 'How confident are you that your child knows who to go to if they feel unsafe or need help?', scale: 'quality', hint: '1=Poor … 5=Excellent' },
+        { name: 'safety_staff_trained', prompt: 'How confident are you that staff are trained to respond appropriately in emergencies?', scale: 'quality', hint: '1=Poor … 5=Excellent' }
+      ],
+      free: { name: 'safety_free', placeholder: 'Share your thoughts about school safety...' }
+    }
+  ];
+
+  // ======= RENDERING =======
+  function scaleFor(id){ return id === 'freq' ? FREQUENCY_SCALE : QUALITY_SCALE; }
+
+  function renderSelect(nameBase, prompt, scl, hint){
+    const wrapper = document.createElement('div');
+    wrapper.className = 'card';
+
+    const p = document.createElement('p');
+    p.className = 'font-medium';
+    p.style.marginBottom = '6px';
+    p.textContent = prompt;
+    wrapper.appendChild(p);
+
+    const row = document.createElement('div');
+    row.className = 'row';
+
+    SCHOOLS.forEach(sch => {
+      const box = document.createElement('div');
+      box.className = 'school';
+      const lab = document.createElement('label');
+      lab.setAttribute('for', `${nameBase}_${sch.key}`);
+      lab.textContent = sch.label;
+      const sel = document.createElement('select');
+      sel.id = `${nameBase}_${sch.key}`;
+      sel.name = `${nameBase}_${sch.key}`;
+      // All questions OPTIONAL → no required attribute
+
+      const placeholder = document.createElement('option');
+      placeholder.selected = true; placeholder.value = '';
+      placeholder.textContent = '— Optional —';
+      sel.appendChild(placeholder);
+
+      // Ensure Positive-first and N/A last
+      orderScale(scl).forEach(opt => {
+        const o = document.createElement('option');
+        o.value = opt.value; o.textContent = opt.label; sel.appendChild(o);
+      });
+
+      box.appendChild(lab);
+      box.appendChild(sel);
+      row.appendChild(box);
+    });
+
+    if (hint){
+      const h = document.createElement('div');
+      h.className = 'hint';
+      h.textContent = 'Scale: ' + hint;
+      wrapper.appendChild(h);
+    }
+
+    wrapper.appendChild(row);
+    return wrapper;
+  }
+
+  function renderFree(name, placeholder){
+    const wrap = document.createElement('div');
+    wrap.className = 'card';
+    const lab = document.createElement('label');
+    lab.setAttribute('for', name);
+    lab.textContent = 'Please feel free to address any of the above questions here:';
+    const ta = document.createElement('textarea');
+    ta.id = name; ta.name = name; ta.placeholder = placeholder;
+    wrap.appendChild(lab); wrap.appendChild(ta);
+    return wrap;
+  }
+
+  const form = document.getElementById('survey');
+  SURVEY.forEach(sec => {
+    const s = document.createElement('section');
+    s.className = 'section';
+
+    const head = document.createElement('div');
+    head.style.display = 'flex';
+    head.style.alignItems = 'center';
+    head.style.justifyContent = 'space-between';
+    const h2 = document.createElement('h2'); h2.textContent = sec.title;
+    const pill = document.createElement('span'); pill.className = 'pill'; pill.textContent = 'Standard';
+    head.appendChild(h2); head.appendChild(pill); s.appendChild(head);
+
+    const bl = document.createElement('p'); bl.className = 'blurb'; bl.textContent = sec.blurb; s.appendChild(bl);
+
+    sec.items.forEach(it => {
+      const scl = scaleFor(it.scale);
+      s.appendChild(renderSelect(it.name, it.prompt, scl, it.hint));
+    });
+
+    s.appendChild(renderFree(sec.free.name, sec.free.placeholder));
+    form.appendChild(s);
+  });
+
+  // Submit actions / status banners
+  const actions = document.createElement('div');
+  actions.className = 'actions';
+  const small = document.createElement('div'); small.className='muted'; small.textContent='All questions are optional. This survey limits one submission per IP address.';
+  const btn = document.createElement('button'); btn.className='btn'; btn.type='submit'; btn.textContent='Submit Survey';
+  actions.appendChild(small); actions.appendChild(btn); form.appendChild(actions);
+
+  const statusBox = document.createElement('div');
+  form.appendChild(statusBox);
+
+  form.addEventListener('submit', async (e)=>{
+    e.preventDefault();
+    statusBox.textContent = '';
+    statusBox.className = '';
+
+    // Collect data (omit empty values to keep payload tidy)
+    const fd = new FormData(form);
+    const entries = Array.from(fd.entries()).filter(([k,v]) => String(v).trim() !== '');
+    const payload = Object.fromEntries(entries);
+
+    try{
+      const res = await fetch((BACKEND_URL || '') + '/submit', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify(payload)
+      });
+      if(res.status === 403){
+        statusBox.className = 'notice warn';
+        statusBox.textContent = 'Looks like this IP has already submitted a response. If you believe this is an error, please contact the district office.';
+      } else if(!res.ok){
+        const t = await res.text();
+        statusBox.className = 'notice err';
+        statusBox.textContent = 'There was a problem submitting your response. ' + (t || 'Unexpected error');
+      } else {
+        statusBox.className = 'notice ok';
+        statusBox.textContent = 'Thank you! Your submission has been recorded.';
+        form.querySelectorAll('select, textarea').forEach(el=>{
+          if(el.tagName === 'SELECT') el.selectedIndex = 0; else el.value = '';
+        });
+      }
+    }catch(err){
+      statusBox.className = 'notice err';
+      statusBox.textContent = 'Network error submitting your response.';
+      console.error(err);
+    }
+  });
+
+  // ======= BASIC RUNTIME TESTS (debugging safety nets) =======
+  console.assert(Array.isArray(SCHOOLS) && SCHOOLS.length === 3, 'SCHOOLS must be an array of 3 items');
+  console.assert(orderScale(QUALITY_SCALE).at(-1)?.value === 'na', 'QUALITY_SCALE must end with N/A');
+  console.assert(orderScale(FREQUENCY_SCALE).at(-1)?.value === 'na', 'FREQUENCY_SCALE must end with N/A');
+  (function(){
+    const first = SURVEY[0].items[0].name;
+    setTimeout(()=>{
+      SCHOOLS.forEach(s=>{
+        const sel = document.getElementById(`${first}_${s.key}`);
+        console.assert(sel, `Missing select for ${first}_${s.key}`);
+      });
+    });
+  })();
+  </script>
+</body>
+</html>
