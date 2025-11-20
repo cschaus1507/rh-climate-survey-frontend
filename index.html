@@ -40,6 +40,17 @@
     footer{color:#6B7280;text-align:center;font-size:.75rem;padding:24px}
     ::selection{background:var(--rh-purple);color:#fff}
     .hint{color:#6B7280;font-size:.8rem;margin-top:8px}
+    .big-confirm {
+        padding: 22px;
+        margin-top: 16px;
+        background: #e6fffa;
+        border: 2px solid #0d9488;
+        color: #0f766e;
+        border-radius: 14px;
+        font-size: 1.25rem;
+        font-weight: 700;
+        text-align: center;
+      }
   </style>
 </head>
 <body>
@@ -267,7 +278,7 @@
     head.style.alignItems = 'center';
     head.style.justifyContent = 'space-between';
     const h2 = document.createElement('h2'); h2.textContent = sec.title;
-    const pill = document.createElement('span'); pill.className = 'pill'; pill.textContent = 'Standard';
+    const pill = document.createElement('span'); pill.className = 'pill'; pill.textContent = 'RHCSD CLIMATE SURVEY';
     head.appendChild(h2); head.appendChild(pill); s.appendChild(head);
 
     const bl = document.createElement('p'); bl.className = 'blurb'; bl.textContent = sec.blurb; s.appendChild(bl);
@@ -315,8 +326,8 @@
         statusBox.className = 'notice err';
         statusBox.textContent = 'There was a problem submitting your response. ' + (t || 'Unexpected error');
       } else {
-        statusBox.className = 'notice ok';
-        statusBox.textContent = 'Thank you! Your submission has been recorded.';
+        statusBox.className = 'big-confirm';
+        statusBox.textContent = '🎉 Thank you! Your response has been successfully submitted and recorded.';
         form.querySelectorAll('select, textarea').forEach(el=>{
           if(el.tagName === 'SELECT') el.selectedIndex = 0; else el.value = '';
         });
